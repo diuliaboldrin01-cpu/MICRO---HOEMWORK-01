@@ -1,0 +1,1156 @@
+#----------------------------------------GOTO----------------------------------------#
+def goto(operand):
+    # converte o operando (string hexadecimal) em inteiro
+    k = int(operand, 16)
+
+    # divide por 2 pois o PC multiplica por 2
+    k = k // 2
+
+    if k > 0xFFFFF:
+        raise ValueError("Endereço fora do intervalo para GOTO (máx. 0xFFFFF)")
+
+    # 1ª palavra: 1110 1111 k7..k0
+    word1 = 0xEF00 | (k & 0xFF)
+    word1 = word1.to_bytes(2, byteorder='little')
+
+    # 2ª palavra: 1111 k19..k8
+    word2 = 0xF000 | (k >> 8)
+    word2 = word2.to_bytes(2, byteorder='little')
+
+    return word1 + word2
+
+#----------------------------------------CLRF----------------------------------------#
+def clrf(operand):
+    # converte o operando (string hexadecimal) em inteiro
+    f = int(operand, 16)
+
+    # verificando se o é para acessar os registradores dentro do Access Bank
+    if (f >= 0x000 and f <= 0x07F) or (f >= 0xF80 and f <= 0xFFF):
+        a = 0
+    else:
+        a = 1
+
+    # encoding: 0110 101a ffff ffff
+    opcode = (0b0110101 << 9) | (a << 8) | (f & 0xFF)
+    opcode = opcode.to_bytes(2, byteorder='little')  # little-endian
+
+    return opcode
+
+#----------------------------------------MOVLW---------------------------------------#
+def movlw(operand):
+    # converte o operando (string hexadecimal) em inteiro
+    k = int(operand, 16)
+
+    # encoding: 0000 1110 kkkk kkkk
+    opcode = (0b00001110 << 8) | (k & 0xFF)
+    opcode = opcode.to_bytes(2, byteorder='little')  # little-endian
+
+    return opcode
+
+#----------------------------------------MOVWF---------------------------------------#
+def movwf(operand):
+    # converte o operando (string hexadecimal) em inteiro
+    f = int(operand, 16)
+
+    # verificando se o é para acessar os registradores dentro do Access Bank
+    if (f >= 0x000 and f <= 0x07F) or (f >= 0xF80 and f <= 0xFFF):
+        a = 0
+    else:
+        a = 1
+
+    # encoding: 0110 111a ffff ffff
+    opcode = (0b0110111 << 9) | (a << 8) | (f & 0xFF)
+    opcode = opcode.to_bytes(2, byteorder='little')  # little-endian
+
+    return opcode
+
+#----------------------------------------MOVF----------------------------------------#
+def movf(operand):
+    # separar os operandos pela vírgula e remover espaços em branco
+    parts = [part.strip() for part in operand.split(',')]
+
+    # converte o operando (string hexadecimal) em inteiro
+    f = int(parts[0], 16)
+
+    # verifica se d = W
+    if parts[1] == 'W':
+        d = 0
+    elif parts[1] == 'F':
+        d = 1
+    
+    # verificando se o é para acessar os registradores dentro do Access Bank
+    if (f >= 0x00 and f <= 0x07F) or (f >= 0xF80 and f <= 0xFFF):
+        a = 0
+    else:
+        a = 1
+
+    # encoding: 0101 00da ffff ffff
+    opcode = (0b010100 << 10) | (d << 9) | (a << 8) | (f & 0xFF)
+    opcode = opcode.to_bytes(2, byteorder='little')  # little-endian
+
+    return opcode
+
+#-----------------------------------------BZ-----------------------------------------#
+def bz(operand, add):
+    # converte o operando (string hexadecimal) em inteiro
+    target = int(operand, 16)
+    pc = int(add, 16)
+
+    # deslocamento relativo em instruções
+    n = (target - (pc + 2)) // 2
+
+    # encoding: 1110 0000 nnnn nnnn
+    opcode = (0b11100000 << 8) | (n & 0xFF)
+    opcode = opcode.to_bytes(2, byteorder='little')  # little-endian
+
+    return opcode
+
+#----------------------------------------DECF----------------------------------------#
+def decf(operand):
+    # separar os operandos pela vírgula e remover espaços em branco
+    parts = [part.strip() for part in operand.split(',')]
+
+    # primeiro parâmetro sempre é f
+    f = int(parts[0], 16)
+
+    # verifica se d = W
+    if parts[1] == 'W':
+        d = 0
+    elif parts[1] == 'F':
+        d = 1
+    
+    # verificando se o é para acessar os registradores dentro do Access Bank
+    if (f >= 0x00 and f <= 0x07F) or (f >= 0xF80 and f <= 0xFFF):
+        a = 0
+    else:
+        a = 1
+
+    # opcode: 0000 01da ffff ffff
+    opcode = (0b000001 << 10) | (d << 9) | (a << 8) | (f & 0xFF)
+    opcode = opcode.to_bytes(2, byteorder='little')  # little-endian
+
+    return opcode
+
+#---------------------------------------DECFSZ---------------------------------------#
+def decfsz(operand):
+    # separar operandos por vírgula e remover espaços
+    parts = [part.strip() for part in operand.split(',')]
+
+    # primeiro parâmetro: f (endereço do registrador)
+    f = int(parts[0], 16)
+
+    # verifica se d = W
+    if parts[1] == 'W':
+        d = 0
+    elif parts[1] == 'F':
+        d = 1
+    
+    # verificando se o é para acessar os registradores dentro do Access Bank
+    if (f >= 0x00 and f <= 0x07F) or (f >= 0xF80 and f <= 0xFFF):
+        a = 0
+    else:
+        a = 1
+
+    # opcode: 0010 11da ffff ffff
+    opcode = (0b001011 << 10) | (d << 9) | (a << 8) | (f & 0xFF)
+    opcode = opcode.to_bytes(2, byteorder='little')  # little-endian
+
+    return opcode
+
+#-----------------------------------------BRA----------------------------------------#
+def bra(operand, add):
+    # destino absoluto
+    target = int(operand, 16)
+    pc = int(add, 16)
+
+    # calcula deslocamento em palavras (já que cada instrução = 2 bytes)
+    n = (target - (pc + 2)) // 2  
+
+    # encoding: 1101 0nnn nnnn nnnn
+    opcode = (0b11010 << 11) | (n & 0x7FF)
+    opcode = opcode.to_bytes(2, byteorder="little")  # little-endian
+
+    return opcode
+
+#----------------------------------------RETLW---------------------------------------#
+def retlw(operand):
+    # converte literal para inteiro
+    k = int(operand, 16)
+
+    # encoding: 0000 1100 kkkk kkkk
+    opcode = (0b00001100 << 8) | (k & 0xFF)
+    opcode = opcode.to_bytes(2, byteorder='little')  # little-endian
+
+    return opcode
+
+#-----------------------------------------BCF----------------------------------------#
+def bcf(operand):
+    # separar operandos
+    parts = [part.strip() for part in operand.split('.')]
+
+    # primeiro parâmetro = f
+    f = int(parts[0], 16)
+
+    # segundo parâmetro = b
+    b = int(parts[1], 10)
+
+    # verificando se o é para acessar os registradores dentro do Access Bank
+    if (f >= 0x00 and f <= 0x07F) or (f >= 0xF80 and f <= 0xFFF):
+        a = 0
+    else:
+        a = 1
+
+    # encoding: 1001 bbba ffff ffff
+    opcode = (0b1001 << 12) | ((b & 0b111) << 9) | (a << 8) | (f & 0xFF)
+    opcode = opcode.to_bytes(2, byteorder="little")  # little-endian
+
+    return opcode
+
+#----------------------------------------ADDLW---------------------------------------#
+def addlw(operand):
+    # converte literal para inteiro
+    k = int(operand, 16)
+
+    # encoding: 0000 1111 kkkk kkkk
+    opcode = (0b00001111 << 8) | (k & 0xFF)
+    opcode = opcode.to_bytes(2, byteorder='little')  # little-endian
+
+    return opcode
+
+#----------------------------------------ANDLW---------------------------------------#
+def andlw(operand):
+    # converte literal para inteiro
+    k = int(operand, 16)
+
+    # encoding: 0000 1011 kkkk kkkk
+    opcode = (0b00001011 << 8) | (k & 0xFF)
+    opcode = opcode.to_bytes(2, byteorder='little')  # little-endian
+
+    return opcode
+
+#----------------------------------------IORLW---------------------------------------#
+def iorlw(operand):
+    # converte literal para inteiro
+    k = int(operand, 16)
+
+    # encoding: 0000 1001 kkkk kkkk
+    opcode = (0b00001001 << 8) | (k & 0xFF)
+    opcode = opcode.to_bytes(2, byteorder='little')  # little-endian
+
+    return opcode
+
+#-----------------------------------------BSF----------------------------------------#
+def bsf(operand):
+    # separar operandos
+    parts = [part.strip() for part in operand.split('.')]
+
+    # primeiro parâmetro = f
+    f = int(parts[0], 16)
+
+    # segundo parâmetro = b
+    b = int(parts[1], 10)
+
+    # verificando se o é para acessar os registradores dentro do Access Bank
+    if (f >= 0x00 and f <= 0x07F) or (f >= 0xF80 and f <= 0xFFF):
+        a = 0
+    else:
+        a = 1
+
+    # encoding: 1000 bbba ffff ffff
+    opcode = (0b1000 << 12) | ((b & 0b111) << 9) | (a << 8) | (f & 0xFF)
+    opcode = opcode.to_bytes(2, byteorder="little")  # little-endian
+
+    return opcode
+
+#----------------------------------------RCALL---------------------------------------#
+def rcall(operand, add):
+    # destino absoluto
+    target = int(operand, 16)
+    pc = int(add, 16)
+
+    # calcula deslocamento em palavras (já que cada instrução = 2 bytes)
+    n = (target - (pc + 2)) // 2  
+
+    # encoding: 1101 1nnn nnnn nnnn
+    opcode = (0b11011 << 11) | (n & 0x7FF)
+    opcode = opcode.to_bytes(2, byteorder="little")  # little-endian
+
+    return opcode
+
+#----------------------------------------SLEEP---------------------------------------#
+def sleep():
+    # encoding: 0000 0000 0000 0011
+    opcode = (0b0000000000000011)
+    opcode = opcode.to_bytes(2, byteorder="little")  # little-endian
+
+    return opcode
+
+#----------------------------------------ADDWF---------------------------------------#
+def addwf(operand):
+    # separar operandos por vírgula e remover espaços
+    parts = [part.strip() for part in operand.split(',')]
+
+    # primeiro parâmetro: f (endereço do registrador)
+    f = int(parts[0], 16)
+
+    # verifica se d = W
+    if parts[1] == 'W':
+        d = 0
+    elif parts[1] == 'F':
+        d = 1
+    
+    # verificando se o é para acessar os registradores dentro do Access Bank
+    if (f >= 0x00 and f <= 0x07F) or (f >= 0xF80 and f <= 0xFFF):
+        a = 0
+    else:
+        a = 1
+
+    # opcode: 0010 01da ffff ffff
+    opcode = (0b001001 << 10) | (d << 9) | (a << 8) | (f & 0xFF)
+    opcode = opcode.to_bytes(2, byteorder='little')  # little-endian
+
+    return opcode
+
+#----------------------------------------ADDWF---------------------------------------#
+def addwfc(operand):
+    # separar operandos por vírgula e remover espaços
+    parts = [part.strip() for part in operand.split(',')]
+
+    # primeiro parâmetro: f (endereço do registrador)
+    f = int(parts[0], 16)
+
+    # verifica se d = W
+    if parts[1] == 'W':
+        d = 0
+    elif parts[1] == 'F':
+        d = 1
+    
+    # verificando se o é para acessar os registradores dentro do Access Bank
+    if (f >= 0x00 and f <= 0x07F) or (f >= 0xF80 and f <= 0xFFF):
+        a = 0
+    else:
+        a = 1
+
+    # opcode: 0010 00da ffff ffff
+    opcode = (0b001000 << 10) | (d << 9) | (a << 8) | (f & 0xFF)
+    opcode = opcode.to_bytes(2, byteorder='little')  # little-endian
+
+    return opcode
+
+#----------------------------------------ANDWF---------------------------------------#
+def andwf(operand):
+    # separar operandos por vírgula e remover espaços
+    parts = [part.strip() for part in operand.split(',')]
+
+    # primeiro parâmetro: f (endereço do registrador)
+    f = int(parts[0], 16)
+
+    # verifica se d = W
+    if parts[1] == 'W':
+        d = 0
+    elif parts[1] == 'F':
+        d = 1
+    
+    # verificando se o é para acessar os registradores dentro do Access Bank
+    if (f >= 0x00 and f <= 0x07F) or (f >= 0xF80 and f <= 0xFFF):
+        a = 0
+    else:
+        a = 1
+
+    # opcode: 0001 01da ffff ffff
+    opcode = (0b000101 << 10) | (d << 9) | (a << 8) | (f & 0xFF)
+    opcode = opcode.to_bytes(2, byteorder='little')  # little-endian
+
+    return opcode
+
+#------------------------------------------BC----------------------------------------#
+def bc(operand, add):
+    # destino absoluto
+    target = int(operand, 16)
+    pc = int(add, 16)
+
+    # calcula deslocamento em palavras (já que cada instrução = 2 bytes)
+    n = (target - (pc + 2)) // 2  
+
+    # encoding: 1110 0010 nnnn nnnn
+    opcode = (0b11100010 << 8) | (n & 0xFF)
+    opcode = opcode.to_bytes(2, byteorder="little")  # little-endian
+
+    return opcode
+
+#------------------------------------------BZ----------------------------------------#
+def bn(operand, add):
+    # destino absoluto
+    target = int(operand, 16)
+    pc = int(add, 16)
+
+    # calcula deslocamento em palavras (já que cada instrução = 2 bytes)
+    n = (target - (pc + 2)) // 2  
+
+    # encoding: 1110 0110 nnnn nnnn
+    opcode = (0b11100110 << 8) | (n & 0xFF)
+    opcode = opcode.to_bytes(2, byteorder="little")  # little-endian
+
+    return opcode
+
+#-----------------------------------------BNC----------------------------------------#
+def bnc(operand, add):
+    # destino absoluto
+    target = int(operand, 16)
+    pc = int(add, 16)
+
+    # calcula deslocamento em palavras (já que cada instrução = 2 bytes)
+    n = (target - (pc + 2)) // 2  
+
+    # encoding: 1110 0011 nnnn nnnn
+    opcode = (0b11100011 << 8) | (n & 0xFF)
+    opcode = opcode.to_bytes(2, byteorder="little")  # little-endian
+
+    return opcode
+
+#-----------------------------------------BNN----------------------------------------#
+def bnn(operand, add):
+    # destino absoluto
+    target = int(operand, 16)
+    pc = int(add, 16)
+
+    # calcula deslocamento em palavras (já que cada instrução = 2 bytes)
+    n = (target - (pc + 2)) // 2  
+
+    # encoding: 1110 0111 nnnn nnnn
+    opcode = (0b11100111 << 8) | (n & 0xFF)
+    opcode = opcode.to_bytes(2, byteorder="little")  # little-endian
+
+    return opcode
+
+#-----------------------------------------BNOV---------------------------------------#
+def bnov(operand, add):
+    # destino absoluto
+    target = int(operand, 16)
+    pc = int(add, 16)
+
+    # calcula deslocamento em palavras (já que cada instrução = 2 bytes)
+    n = (target - (pc + 2)) // 2  
+
+    # encoding: 1110 0101 nnnn nnnn
+    opcode = (0b11100101 << 8) | (n & 0xFF)
+    opcode = opcode.to_bytes(2, byteorder="little")  # little-endian
+
+    return opcode
+
+#-----------------------------------------BNZ----------------------------------------#
+def bnz(operand, add):
+    # destino absoluto
+    target = int(operand, 16)
+    pc = int(add, 16)
+
+    # calcula deslocamento em palavras (já que cada instrução = 2 bytes)
+    n = (target - (pc + 2)) // 2  
+
+    # encoding: 1110 0001 nnnn nnnn
+    opcode = (0b11100001 << 8) | (n & 0xFF)
+    opcode = opcode.to_bytes(2, byteorder="little")  # little-endian
+
+    return opcode
+
+#----------------------------------------BTFSC---------------------------------------#
+def btfsc(operand):
+    # separar operandos
+    parts = [part.strip() for part in operand.split('.')]
+
+    # primeiro parâmetro = f
+    f = int(parts[0], 16)
+
+    # segundo parâmetro = b
+    b = int(parts[1], 10)
+
+    # verificando se o é para acessar os registradores dentro do Access Bank
+    if (f >= 0x00 and f <= 0x07F) or (f >= 0xF80 and f <= 0xFFF):
+        a = 0
+    else:
+        a = 1
+
+    # encoding: 1011 bbba ffff ffff
+    opcode = (0b1011 << 12) | ((b & 0b111) << 9) | (a << 8) | (f & 0xFF)
+    opcode = opcode.to_bytes(2, byteorder="little")  # little-endian
+
+    return opcode
+
+#----------------------------------------BTFSS---------------------------------------#
+def btfss(operand):
+    # separar operandos
+    parts = [part.strip() for part in operand.split('.')]
+
+    # primeiro parâmetro = f
+    f = int(parts[0], 16)
+
+    # segundo parâmetro = b
+    b = int(parts[1], 10)
+
+    # verificando se o é para acessar os registradores dentro do Access Bank
+    if (f >= 0x00 and f <= 0x07F) or (f >= 0xF80 and f <= 0xFFF):
+        a = 0
+    else:
+        a = 1
+
+    # encoding: 1010 bbba ffff ffff
+    opcode = (0b1010 << 12) | ((b & 0b111) << 9) | (a << 8) | (f & 0xFF)
+    opcode = opcode.to_bytes(2, byteorder="little")  # little-endian
+
+    return opcode
+
+#-----------------------------------------BTG----------------------------------------#
+def btg(operand):
+    # separar operandos
+    parts = [part.strip() for part in operand.split('.')]
+
+    # primeiro parâmetro = f
+    f = int(parts[0], 16)
+
+    # segundo parâmetro = b
+    b = int(parts[1], 10)
+
+    # verificando se o é para acessar os registradores dentro do Access Bank
+    if (f >= 0x00 and f <= 0x07F) or (f >= 0xF80 and f <= 0xFFF):
+        a = 0
+    else:
+        a = 1
+
+    # encoding: 0111 bbba ffff ffff
+    opcode = (0b0111 << 12) | ((b & 0b111) << 9) | (a << 8) | (f & 0xFF)
+    opcode = opcode.to_bytes(2, byteorder="little")  # little-endian
+
+    return opcode
+
+#-----------------------------------------BOV----------------------------------------#
+def bov(operand, add):
+    # destino absoluto
+    target = int(operand, 16)
+    pc = int(add, 16)
+
+    # calcula deslocamento em palavras (já que cada instrução = 2 bytes)
+    n = (target - (pc + 2)) // 2  
+
+    # encoding: 1110 0100 nnnn nnnn
+    opcode = (0b11100100 << 8) | (n & 0xFF)
+    opcode = opcode.to_bytes(2, byteorder="little")  # little-endian
+
+    return opcode
+
+#----------------------------------------CALL----------------------------------------#
+def call(operand):
+    # Separar os operandos pela vírgula e remover espaços em branco
+    parts = [part.strip() for part in operand.split(',')]
+
+    # converte o operando (string hexadecimal) em inteiro
+    k = int(parts[0], 16)
+
+    # divide por 2 pois o PC multiplica por 2
+    k = k // 2
+
+    if k > 0xFFFFF:
+        raise ValueError("Endereço fora do intervalo para GOTO (máx. 0xFFFFF)")
+    
+    # Inicializa 's' com o valor padrão (0)
+    s = 0
+
+    # Verifica se existe uma segunda parte (bit 's')
+    if len(parts) > 1:
+        s_value_str = parts[1]
+        if s_value_str == '0':
+            s = 0
+        else:
+            # Se a segunda parte existir e não for '0', assume-se que 's' é 1
+            s = 1
+
+    # 1ª palavra: 1110 110s k7..k0
+    word1 = (0b1110110 << 9) | (s << 8) | (k & 0xFF)
+    word1 = word1.to_bytes(2, byteorder='little')
+
+    # 2ª palavra: 1111 k19..k8
+    word2 = 0xF000 | (k >> 8)
+    word2 = word2.to_bytes(2, byteorder='little')
+
+    return word1 + word2
+
+#---------------------------------------CLRWDT---------------------------------------#
+def clrwdt():
+    # encoding: 0000 0000 0000 0100
+    opcode = (0b0000000000000100)
+    opcode = opcode.to_bytes(2, byteorder="little")  # little-endian
+
+    return opcode
+
+#----------------------------------------COMF----------------------------------------#
+def comf(operand):
+    # separar operandos por vírgula e remover espaços
+    parts = [part.strip() for part in operand.split(',')]
+
+    # primeiro parâmetro: f (endereço do registrador)
+    f = int(parts[0], 16)
+
+    # verifica se d = W
+    if parts[1] == 'W':
+        d = 0
+    elif parts[1] == 'F':
+        d = 1
+    
+    # verificando se o é para acessar os registradores dentro do Access Bank
+    if (f >= 0x00 and f <= 0x07F) or (f >= 0xF80 and f <= 0xFFF):
+        a = 0
+    else:
+        a = 1
+
+    # opcode: 0001 11da ffff ffff
+    opcode = (0b000111 << 10) | (d << 9) | (a << 8) | (f & 0xFF)
+    opcode = opcode.to_bytes(2, byteorder='little')  # little-endian
+
+    return opcode
+
+#---------------------------------------CPFSEQ---------------------------------------#
+def cpfseq(operand):
+    # converte o operando (string hexadecimal) em inteiro
+    f = int(operand, 16)
+
+    # verificando se o é para acessar os registradores dentro do Access Bank
+    if (f >= 0x000 and f <= 0x07F) or (f >= 0xF80 and f <= 0xFFF):
+        a = 0
+    else:
+        a = 1
+
+    # encoding: 0110 001a ffff ffff
+    opcode = (0b0110001 << 9) | (a << 8) | (f & 0xFF)
+    opcode = opcode.to_bytes(2, byteorder='little')  # little-endian
+
+    return opcode
+
+#---------------------------------------CPFSGT---------------------------------------#
+def cpfsgt(operand):
+    # converte o operando (string hexadecimal) em inteiro
+    f = int(operand, 16)
+
+    # verificando se o é para acessar os registradores dentro do Access Bank
+    if (f >= 0x000 and f <= 0x07F) or (f >= 0xF80 and f <= 0xFFF):
+        a = 0
+    else:
+        a = 1
+
+    # encoding: 0110 010a ffff ffff
+    opcode = (0b0110010 << 9) | (a << 8) | (f & 0xFF)
+    opcode = opcode.to_bytes(2, byteorder='little')  # little-endian
+
+    return opcode
+
+#---------------------------------------CPFSGT---------------------------------------#
+def cpfslt(operand):
+    # converte o operando (string hexadecimal) em inteiro
+    f = int(operand, 16)
+
+    # verificando se o é para acessar os registradores dentro do Access Bank
+    if (f >= 0x000 and f <= 0x07F) or (f >= 0xF80 and f <= 0xFFF):
+        a = 0
+    else:
+        a = 1
+
+    # encoding: 0110 000a ffff ffff
+    opcode = (0b0110000 << 9) | (a << 8) | (f & 0xFF)
+    opcode = opcode.to_bytes(2, byteorder='little')  # little-endian
+
+    return opcode
+
+#----------------------------------------DAW-----------------------------------------#
+def daw():
+    # encoding: 0000 0000 0000 0111
+    opcode = (0b0000000000000111)
+    opcode = opcode.to_bytes(2, byteorder="little")  # little-endian
+
+    return opcode
+
+#--------------------------------------DCFSNZ----------------------------------------#
+def dcfsnz(operand):
+    # separar os operandos pela vírgula e remover espaços em branco
+    parts = [part.strip() for part in operand.split(',')]
+
+    # converte o operando (string hexadecimal) em inteiro
+    f = int(parts[0], 16)
+
+    # verifica se d = W
+    if parts[1] == 'W':
+        d = 0
+    elif parts[1] == 'F':
+        d = 1
+    
+    # verificando se o é para acessar os registradores dentro do Access Bank
+    if (f >= 0x00 and f <= 0x07F) or (f >= 0xF80 and f <= 0xFFF):
+        a = 0
+    else:
+        a = 1
+
+    # encoding: 0100 11da ffff ffff
+    opcode = (0b010011 << 10) | (d << 9) | (a << 8) | (f & 0xFF)
+    opcode = opcode.to_bytes(2, byteorder='little')  # little-endian
+
+    return opcode
+
+#---------------------------------------INCF-----------------------------------------#
+def incf(operand):
+    # separar os operandos pela vírgula e remover espaços em branco
+    parts = [part.strip() for part in operand.split(',')]
+
+    # converte o operando (string hexadecimal) em inteiro
+    f = int(parts[0], 16)
+
+    # verifica se d = W
+    if parts[1] == 'W':
+        d = 0
+    elif parts[1] == 'F':
+        d = 1
+    
+    # verificando se o é para acessar os registradores dentro do Access Bank
+    if (f >= 0x00 and f <= 0x07F) or (f >= 0xF80 and f <= 0xFFF):
+        a = 0
+    else:
+        a = 1
+
+    # encoding: 0010 10da ffff ffff
+    opcode = (0b001010 << 10) | (d << 9) | (a << 8) | (f & 0xFF)
+    opcode = opcode.to_bytes(2, byteorder='little')  # little-endian
+
+    return opcode
+
+#--------------------------------------INCFSZ----------------------------------------#
+def incfsz(operand):
+    # separar os operandos pela vírgula e remover espaços em branco
+    parts = [part.strip() for part in operand.split(',')]
+
+    # converte o operando (string hexadecimal) em inteiro
+    f = int(parts[0], 16)
+
+    # verifica se d = W
+    if parts[1] == 'W':
+        d = 0
+    elif parts[1] == 'F':
+        d = 1
+    
+    # verificando se o é para acessar os registradores dentro do Access Bank
+    if (f >= 0x00 and f <= 0x07F) or (f >= 0xF80 and f <= 0xFFF):
+        a = 0
+    else:
+        a = 1
+
+    # encoding: 0011 11da ffff ffff
+    opcode = (0b001111 << 10) | (d << 9) | (a << 8) | (f & 0xFF)
+    opcode = opcode.to_bytes(2, byteorder='little')  # little-endian
+
+    return opcode
+
+#--------------------------------------INFSNZ----------------------------------------#
+def infsnz(operand):
+    # separar os operandos pela vírgula e remover espaços em branco
+    parts = [part.strip() for part in operand.split(',')]
+
+    # converte o operando (string hexadecimal) em inteiro
+    f = int(parts[0], 16)
+
+    # verifica se d = W
+    if parts[1] == 'W':
+        d = 0
+    elif parts[1] == 'F':
+        d = 1
+    
+    # verificando se o é para acessar os registradores dentro do Access Bank
+    if (f >= 0x00 and f <= 0x07F) or (f >= 0xF80 and f <= 0xFFF):
+        a = 0
+    else:
+        a = 1
+
+    # encoding: 0100 10da ffff ffff
+    opcode = (0b010010 << 10) | (d << 9) | (a << 8) | (f & 0xFF)
+    opcode = opcode.to_bytes(2, byteorder='little')  # little-endian
+
+    return opcode
+
+#---------------------------------------IORWF----------------------------------------#
+def iorwf(operand):
+    # separar os operandos pela vírgula e remover espaços em branco
+    parts = [part.strip() for part in operand.split(',')]
+
+    # converte o operando (string hexadecimal) em inteiro
+    f = int(parts[0], 16)
+
+    # verifica se d = W
+    if parts[1] == 'W':
+        d = 0
+    elif parts[1] == 'F':
+        d = 1
+    
+    # verificando se o é para acessar os registradores dentro do Access Bank
+    if (f >= 0x00 and f <= 0x07F) or (f >= 0xF80 and f <= 0xFFF):
+        a = 0
+    else:
+        a = 1
+
+    # encoding: 0001 00da ffff ffff
+    opcode = (0b000100 << 10) | (d << 9) | (a << 8) | (f & 0xFF)
+    opcode = opcode.to_bytes(2, byteorder='little')  # little-endian
+
+    return opcode
+
+#---------------------------------------LFSR-----------------------------------------#
+def lfsr(operand):
+    # separar os operandos pela vírgula e remover espaços em branco
+    parts = [part.strip() for part in operand.split(',')]
+
+    # converte o operando (string hexadecimal) em inteiro
+    f = int(parts[0], 16)
+    k = int(parts[1], 16)
+
+    # word1 = 1110 1110 00ff k11kkk
+    word1 = 0xEE00 | ((f & 0b11) << 4) | ((k >> 8) & 0x0F)
+    word1 = word1.to_bytes(2, byteorder='little')
+
+    # word2 = 1111 0000 k7kk kkkk
+    word2 = 0xF000 | (k & 0xFF)
+    word2 = word2.to_bytes(2, byteorder='little')
+
+    return word1 + word2
+
+#---------------------------------------MOVFF----------------------------------------#
+def movff(operand):
+    # separar os operandos pela vírgula e remover espaços em branco
+    parts = [part.strip() for part in operand.split(',')]
+
+    # converte o operando (string hexadecimal) em inteiro
+    fs = int(parts[0], 16)
+    fd = int(parts[1], 16)
+
+    # 1ª palavra: 1100 (ffff ffff ffff)s
+    word1 = 0xC000 | (fs & 0xFFF)
+    word1 = word1.to_bytes(2, byteorder='little')
+
+    # 2ª palavra: 1111 (ffff ffff ffff)d
+    word2 = 0xF000 | (fd & 0xFFF)
+    word2 = word2.to_bytes(2, byteorder='little')
+
+    return word1 + word2
+
+#----------------------------------------MOVLB---------------------------------------#
+def movlb(operand):
+    # converte o operando (string hexadecimal) em inteiro
+    k = int(operand, 16)
+
+    # encoding: 0000 0001 kkkk kkkk
+    opcode = (0b00000001 << 8) | (k & 0xFF)
+    opcode = opcode.to_bytes(2, byteorder='little')  # little-endian
+
+    return opcode
+
+#----------------------------------------MULLW---------------------------------------#
+def mullw(operand):
+    # converte o operando (string hexadecimal) em inteiro
+    k = int(operand, 16)
+
+    # encoding: 0000 1101 kkkk kkkk
+    opcode = (0b00001101 << 8) | (k & 0xFF)
+    opcode = opcode.to_bytes(2, byteorder='little')  # little-endian
+
+    return opcode
+
+#----------------------------------------MULWF---------------------------------------#
+def mulwf(operand):
+    # converte o operando (string hexadecimal) em inteiro
+    f = int(operand, 16)
+
+    # verificando se o é para acessar os registradores dentro do Access Bank
+    if (f >= 0x000 and f <= 0x07F) or (f >= 0xF80 and f <= 0xFFF):
+        a = 0
+    else:
+        a = 1
+
+    # encoding: 0000 001a ffff ffff
+    opcode = (0b0000001 << 9) | (a << 8) | (f & 0xFF)
+    opcode = opcode.to_bytes(2, byteorder='little')  # little-endian
+
+    return opcode
+
+#-----------------------------------------NEGF---------------------------------------#
+def negf(operand):
+    # converte o operando (string hexadecimal) em inteiro
+    f = int(operand, 16)
+
+    # verificando se o é para acessar os registradores dentro do Access Bank
+    if (f >= 0x000 and f <= 0x07F) or (f >= 0xF80 and f <= 0xFFF):
+        a = 0
+    else:
+        a = 1
+
+    # encoding: 0110 110a ffff ffff
+    opcode = (0b0110110 << 9) | (a << 8) | (f & 0xFF)
+    opcode = opcode.to_bytes(2, byteorder='little')  # little-endian
+
+    return opcode
+
+#----------------------------------------NOP-----------------------------------------#
+def nop():
+    # encoding: 0000 0000 0000 0000
+    opcode = (0b0000000000000000)
+    opcode = opcode.to_bytes(2, byteorder="little")  # little-endian
+
+    return opcode
+
+#----------------------------------------POP-----------------------------------------#
+def pop():
+    # encoding: 0000 0000 0000 0110
+    opcode = (0b0000000000000110)
+    opcode = opcode.to_bytes(2, byteorder="little")  # little-endian
+
+    return opcode
+
+#---------------------------------------PUSH-----------------------------------------#
+def push():
+    # encoding: 0000 0000 0000 0101
+    opcode = (0b0000000000000101)
+    opcode = opcode.to_bytes(2, byteorder="little")  # little-endian
+
+    return opcode
+
+#---------------------------------------RESET-----------------------------------------#
+def reset():
+    # encoding: 0000 0000 1111 1111
+    opcode = (0b0000000011111111)
+    opcode = opcode.to_bytes(2, byteorder="little")  # little-endian
+
+    return opcode
+
+#--------------------------------------RETFIE-----------------------------------------#
+def retfie(operand):
+    # converte o operando (string hexadecimal) em inteiro
+    s = int(operand, 16)
+
+    # encoding: 0000 0000 0001 000s
+    opcode = 0x0000|s
+    opcode = opcode.to_bytes(2, byteorder="little")  # little-endian
+
+    return opcode
+
+#---------------------------------------SUBLW-----------------------------------------#
+def sublw(operand):
+    # converte o operando (string hexadecimal) em inteiro
+    k = int(operand, 16)
+
+    # encoding: 0000 1000 kkkk kkkk
+    opcode = (0b00001000 << 8) | (k & 0xFF)
+    opcode = opcode.to_bytes(2, byteorder='little')  # little-endian
+
+    return opcode
+
+# MAPA DE INTRUÇÕES
+INSTRUCTION_SET = {
+    "GOTO"  : goto,
+    "CLRF"  : clrf,
+    "MOVLW" : movlw,
+    "MOVWF" : movwf,
+    "MOVF"  : movf,
+    "BZ"    : bz,
+    "DECF"  : decf,
+    "DECFSZ": decfsz,
+    "BRA"   : bra,
+    "RETLW" : retlw,
+    "BCF"   : bcf,
+    "ADDLW" : addlw,
+    "ANDLW" : andlw,
+    "IORLW" : iorlw,
+    "BSF"   : bsf,
+    "RCALL" : rcall,
+    "SLEEP" : sleep,
+    "ADDWF" : addwf,
+    "ADDWFC": addwfc,
+    "ANDWF" : andwf,
+    "BC"    : bc,
+    "BN"    : bn,
+    "BNC"   : bnc,
+    "BNN"   : bnn,
+    "BNOV"  : bnov,
+    "BNZ"   : bnz,
+    "BTFSC" : btfsc,
+    "BTFSS" : btfss,
+    "BTG"   : btg,
+    "BOV"   : bov,
+    "CALL"  : call,
+    "CLRWDT": clrwdt,
+    "COMF"  : comf,
+    "CPFSEQ": cpfseq,
+    "CPFSGT": cpfsgt,
+    "CPFSLT": cpfslt,
+    "DAW"   : daw,
+    "DCFSNZ": dcfsnz,
+    "INCF"  : incf,
+    "INCFSZ": incfsz,
+    "INFSNZ": infsnz,
+    "IORWF" : iorwf,
+    "LFSR"  : lfsr,
+    "MOVFF" : movff,
+    "MOVLB" : movlb,
+    "MULLW" : mullw,
+    "NEGF"  : negf,
+    "NOP"   : nop,
+    "POP"   : pop,
+    "RESET" : reset,
+    "RETFIE": retfie,
+    "SUBLW" : sublw
+}
+
+# FUNÇÃO PARA INTERPRETAR LINHA
+def parse_asm_line(line):
+    line = line.strip()
+    if not line or ':' not in line:
+        return None
+
+    # separa o endereço
+    parts = line.split(':', 1)
+    address = parts[0].strip()
+    rest = parts[1].strip()
+
+    # linha incompleta
+    if not address or not rest:
+        return None
+
+    # divide a instrução e os operandos
+    rest_parts = rest.split(maxsplit=1)
+    instruction = rest_parts[0]
+    operands = rest_parts[1] if len(rest_parts) > 1 else ''
+
+    # garante que o endereço é um hexadecimal válido
+    try:
+        int(address, 16)
+    except ValueError:
+        return None
+
+    return address, instruction, operands
+
+# FUNÇÃO PARA LER ARQUIVO ASM
+def read_asm_file(filename):
+    instructions = []
+    fuses = []
+    inside_fuses = False
+
+    with open(filename, 'r', encoding="latin-1") as f:
+        for line in f:
+            stripped = line.strip()
+            if not stripped:
+                continue
+
+            # detecta início do bloco de fuses
+            if "Configuration Fuses:" in stripped:
+                inside_fuses = True
+                continue
+
+            if inside_fuses:
+                # procura por linhas do tipo "Word  1: C100   XT FCMEN IESO"
+                if stripped.lower().startswith("word"):
+                    parts = stripped.split()
+                    if len(parts) >= 3:
+                        word_hex = parts[2]
+                        fuses.append(word_hex)
+                else:
+                    # fim do bloco de fuses
+                    inside_fuses = False
+                continue
+
+            # processa linhas normais de instrução
+            parsed = parse_asm_line(line)
+            if parsed:
+                instructions.append({
+                    'address': parsed[0],
+                    'instruction': parsed[1],
+                    'operands': parsed[2]
+                })
+
+    return instructions, fuses
+
+# FUNÇÃO PARA GERAR OS BYTES
+def assemble_bytes(instructions):
+    # para acumular todos os bytes
+    memory = []
+
+    for instr in instructions:
+        name = instr['instruction'].upper()
+        operand = instr['operands']
+        add = instr['address']
+
+        if name not in INSTRUCTION_SET:
+            raise ValueError(f"Instrução desconhecida: {name}")
+        
+        # chama a função da instrução e pega os bytes
+        if name == "BZ" or name == "BRA" or name == "RCALL" or name == "BC" or name == "BN" or name == "BNC" or name == "BNN" or name == "BNOV" or name == "BNZ":
+            opcode_bytes = INSTRUCTION_SET[name](operand, add)
+        elif name == "CLRWDT" or name == "SLEEP" or name == "DAW" or name == "POP" or name == "NOP" or name == "PUSH" or name == "RESET":
+            opcode_bytes = INSTRUCTION_SET[name]()
+        else:
+            opcode_bytes = INSTRUCTION_SET[name](operand)
+
+        # add os bytes na memoria
+        memory.extend(opcode_bytes)
+    
+    return memory
+
+# FUNÇÃO PARA GERAR O INTEL HEX
+def write_intel_hex(filename, memory, start_addr=0x0000, fuses=None):
+    with open(filename, "w") as f:
+        # código principal
+        addr = start_addr
+        i = 0
+        while i < len(memory):
+            chunk = memory[i:i+16]
+            count = len(chunk)
+            record_type = 0x00
+
+            checksum = (count + ((addr >> 8) & 0xFF) + (addr & 0xFF) + record_type + sum(chunk)) & 0xFF
+            checksum = ((~checksum + 1) & 0xFF)
+
+            f.write(f":{count:02X}{addr:04X}{record_type:02X}{''.join(f'{b:02X}' for b in chunk)}{checksum:02X}\n")
+
+            addr += count
+            i += count
+
+        # fuses (se houver)
+        if fuses:
+            # registro de extensão de endereço fixo para fuses do PIC18F1220
+            f.write(":020000040030CA\n")
+
+            # transforma os words em bytes (LSB primeiro)
+            fuse_bytes = []
+            for word in fuses:
+                w = int(word, 16)
+                fuse_bytes.append(w & 0xFF)          # LSB
+                fuse_bytes.append((w >> 8) & 0xFF)   # MSB
+
+            # escreve os fuses em linhas de até 16 bytes
+            addr = 0x0000
+            for j in range(0, len(fuse_bytes), 16):
+                chunk = fuse_bytes[j:j+16]
+                count = len(chunk)
+                record_type = 0x00
+                checksum = (count + ((addr >> 8) & 0xFF) + (addr & 0xFF) + record_type + sum(chunk)) & 0xFF
+                checksum = ((~checksum + 1) & 0xFF)
+                f.write(f":{count:02X}{addr:04X}{record_type:02X}{''.join(f'{b:02X}' for b in chunk)}{checksum:02X}\n")
+                addr += count
+
+        # fim
+        f.write(":00000001FF\n")
+
+
+# EXECUÇÃO PRINCIPAL
+if __name__ == "__main__":
+    asm_file = "trafic_light/trafic_light.lst"
+    hex_file = "output.hex"
+
+    # ler o arquivo ASM e extrair as instruções e os fuses
+    instrs, fuses = read_asm_file(asm_file)
+
+    # converter instruções em bytes
+    mem_bytes = assemble_bytes(instrs)
+
+    # escrever HEX incluindo fuses
+    write_intel_hex(hex_file, mem_bytes, fuses=fuses)
+    
